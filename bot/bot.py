@@ -48,6 +48,7 @@ HELP_MESSAGE = """Commands:
 ⚪ /settings – Show settings
 ⚪ /balance – Show balance
 ⚪ /help – Show help
+⚪ /brain – Load from brain
 """
 
 
@@ -298,15 +299,21 @@ async def voice_message_handle(update: Update, context: CallbackContext):
     await message_handle(update, context, message=transcribed_text)
 
 
-async def new_dialog_handle(update: Update, context: CallbackContext):
+async def load_from_brain_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     if await is_previous_message_not_answered_yet(update, context): return
 
     user_id = update.message.from_user.id
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
-    db.start_new_dialog(user_id)
-    await update.message.reply_text("Starting new dialog ✅")
+    #db.start_new_dialog(user_id)
+    await update.message.reply_text("...")
+
+    # Get param
+    # GIT pull
+    # Call search from brain.py
+    # Add result to conversation
+    await update.message.reply_text("I know kungfu")
 
     chat_mode = db.get_user_attribute(user_id, "current_chat_mode")
     await update.message.reply_text(f"{openai_utils.CHAT_MODES[chat_mode]['welcome_message']}", parse_mode=ParseMode.HTML)
@@ -486,6 +493,7 @@ async def post_init(application: Application):
         BotCommand("/balance", "Show balance"),
         BotCommand("/settings", "Show settings"),
         BotCommand("/help", "Show help message"),
+        BotCommand("/brain", "Load from brain"),
     ])
 
 def run_bot() -> None:
@@ -522,6 +530,8 @@ def run_bot() -> None:
     application.add_handler(CallbackQueryHandler(set_settings_handle, pattern="^set_settings"))
 
     application.add_handler(CommandHandler("balance", show_balance_handle, filters=user_filter))
+
+    application.add_handler(CommandHandler("brain", load_brain_handle, filters=user_filter))
 
     application.add_error_handler(error_handle)
 
