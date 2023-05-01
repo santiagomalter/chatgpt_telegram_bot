@@ -109,5 +109,4 @@ def custom_score(searcher, fieldnum, textreader, docnum, weight):
 
 search_query = "blockstars"
 response = search_vault(search_query)
-print(response)
 
