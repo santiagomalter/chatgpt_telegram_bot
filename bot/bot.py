@@ -33,6 +33,9 @@ import config
 import database
 import openai_utils
 
+# Custom modules
+from brain import search_vault
+
 
 # setup
 db = database.Database()
@@ -56,6 +59,8 @@ def split_text_into_chunks(text, chunk_size):
     for i in range(0, len(text), chunk_size):
         yield text[i:i + chunk_size]
 
+def store_brain_results(user_id, results):
+    db.set_user_attribute(user_id, "brain_results", results)
 
 async def register_user_if_not_exists(update: Update, context: CallbackContext, user: User):
     if not db.check_if_user_exists(user.id):
@@ -143,6 +148,20 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     if await is_previous_message_not_answered_yet(update, context): return
 
     user_id = update.message.from_user.id
+
+    ## Start brain feature
+    # Retrieve brain search results from user context
+    brain_results = db.get_user_attribute(user_id, "brain_results")
+
+    # Combine user message and brain search results as input to the model
+    if brain_results:
+        user_message = f"{brain_results}\n\nUser: {user_message}"
+        # Clear brain results after using them
+        store_brain_results(user_id, None)
+    ## End brain feature
+
+    
+
     async def message_handle_fn():
         chat_mode = db.get_user_attribute(user_id, "current_chat_mode")
 
@@ -299,24 +318,28 @@ async def voice_message_handle(update: Update, context: CallbackContext):
     await message_handle(update, context, message=transcribed_text)
 
 
-async def load_from_brain_handle(update: Update, context: CallbackContext):
-    await register_user_if_not_exists(update, context, update.message.from_user)
-    if await is_previous_message_not_answered_yet(update, context): return
+async def load_brain_handle(update: Update, context: CallbackContext):
+    # Check if the user provided a search query
+    if len(context.args) == 0:
+        await update.message.reply_text("Please provide a search query, like: /brain acme")
+        return
 
+    # Register user if not exists
+    await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
-    #db.start_new_dialog(user_id)
-    await update.message.reply_text("...")
+    # Get the search query from the command
+    search_query = " ".join(context.args)
 
-    # Get param
-    # GIT pull
-    # Call search from brain.py
-    # Add result to conversation
-    await update.message.reply_text("I know kungfu")
+    # Search the query in the brain vault
+    response = search_vault(search_query)
 
-    chat_mode = db.get_user_attribute(user_id, "current_chat_mode")
-    await update.message.reply_text(f"{openai_utils.CHAT_MODES[chat_mode]['welcome_message']}", parse_mode=ParseMode.HTML)
+    # Store the search results in the user's context
+    store_brain_results(user_id, response)
+
+    # Send a confirmation message to the user
+    await update.message.reply_text("Brain results have been loaded into the conversation context.")
 
 
 async def cancel_handle(update: Update, context: CallbackContext):
