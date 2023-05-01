@@ -138,3 +138,8 @@ mongodb/
 .DS_Store
 config/config.disabled.env
 config/config.disabled.yml
+*.toc
+*.seg
+data/index/MAIN_WRITELOCK
+data/index
+data/vault

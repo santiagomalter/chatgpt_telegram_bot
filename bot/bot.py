@@ -148,16 +148,12 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     if await is_previous_message_not_answered_yet(update, context): return
 
     user_id = update.message.from_user.id
+    user_message = update.message.text
 
     # START BRAIN
     # Retrieve brain search results from user context
     brain_results = db.get_user_attribute(user_id, "brain_results")
-
-    # Combine user message and brain search results as input to the model
-    if brain_results:
-        user_message = f"{brain_results}\n\nUser: {user_message}"
-        # Clear brain results after using them
-        store_brain_results(user_id, None)
+    store_brain_results(user_id, None)
 
     # END BRAIN
 
@@ -185,6 +181,15 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             _message = message or update.message.text
 
             dialog_messages = db.get_dialog_messages(user_id, dialog_id=None)
+
+            # Add a custom message and brain results to the dialog_messages
+            if brain_results:
+                #custom_message = "Here are some search results from your personal knowledge base:"
+                dialog_messages.extend([
+                    #{"user": "Custom Message", "bot": custom_message, "date": datetime.now()},
+                    {"user": "Brain Results", "bot": brain_results, "date": datetime.now()}
+                ])
+
             parse_mode = {
                 "html": ParseMode.HTML,
                 "markdown": ParseMode.MARKDOWN

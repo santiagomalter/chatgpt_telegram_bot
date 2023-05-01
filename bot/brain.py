@@ -7,82 +7,85 @@ from whoosh.qparser import QueryParser
 from whoosh import scoring
 from bs4 import BeautifulSoup
 import re
+from os.path import dirname, abspath
+
 
 def process_file_path(file_path: str) -> str:
     relevant_parts = file_path.split("/")[3:]  # Keep only the relevant parts of the path
     return " / ".join(relevant_parts)
 
-
-# Step 1: Traverse Obsidian vault and read .md files
-vault_path = "../../brain"
-md_files = glob.glob(os.path.join(vault_path, "**/*.md"), recursive=True)
-
-# Create the index directory if it does not exist
-index_directory = "../../brain/indexdir"
-if not os.path.exists(index_directory):
-    os.makedirs(index_directory)
-
-# Step 2: Parse Markdown content
-markdown = mistune.create_markdown()
-
-# Step 3: Create search index with Whoosh
-schema = Schema(path=ID(stored=True, unique=True),
-                title=TEXT(stored=True),
-                content=TEXT(stored=True),
-                backlinks=KEYWORD,
-                emphasized=TEXT,
-                filepath=TEXT(stored=True))
-
-index = create_in(index_directory, schema)
-writer = index.writer()
-
-for md_file in md_files:
-    with open(md_file, "r") as f:
-        content = f.read()
-        html = markdown(content)
-        soup = BeautifulSoup(html, "html.parser")
-
-        # Extract title
-        title = soup.h1.get_text() if soup.h1 else ""
-
-        # Extract backlinks
-        backlinks = set()
-        for link in soup.find_all("a"):
-            href = link.get("href")
-            if href and href.startswith("#"):
-                backlinks.add(href[1:])
-
-        # Extract emphasized text
-        emphasized = set()
-        for em in soup.find_all("em"):
-            emphasized.add(em.get_text())
-
-        # Add them to the index
-        processed_path = process_file_path(md_file)
-        writer.add_document(
-            path=md_file,
-            title=title,
-            content=content,
-            backlinks=" ".join(backlinks),
-            emphasized=" ".join(emphasized),
-            filepath=processed_path
-        )
-
-writer.commit()
-
-# Step 4: Ranking search results using BM25F
-searcher = index.searcher(
-    weighting=scoring.BM25F(
-        B=0.75,
-        content_B=1.0,
-        backlinks_B=1.5,
-        emphasized_B=2.0,
-        filepath_B=1.0
-    )
-)
-
-
 def search_vault(query_str: str, max_content_size: int = 1000, max_results: int = 5) -> str:
+    # Step 1: Traverse Obsidian vault and read .md files
+    vault_path = d = f"{dirname(dirname(abspath(__file__)))}/data/vault"
+    full_vault_path = os.path.join(vault_path, "**/*.md")
+    md_files = glob.glob(full_vault_path, recursive=True)
+
+    print(query_str, vault_path, full_vault_path, md_files)
+
+    # Create the index directory if it does not exist
+    index_directory = vault_path = d = f"{dirname(dirname(abspath(__file__)))}/data/index"
+    if not os.path.exists(index_directory):
+        os.makedirs(index_directory)
+
+    # Step 2: Parse Markdown content
+    markdown = mistune.create_markdown()
+
+    # Step 3: Create search index with Whoosh
+    schema = Schema(path=ID(stored=True, unique=True),
+                    title=TEXT(stored=True),
+                    content=TEXT(stored=True),
+                    backlinks=KEYWORD,
+                    emphasized=TEXT,
+                    filepath=TEXT(stored=True))
+
+    index = create_in(index_directory, schema)
+    writer = index.writer()
+
+    for md_file in md_files:
+        with open(md_file, "r") as f:
+            content = f.read()
+            html = markdown(content)
+            soup = BeautifulSoup(html, "html.parser")
+
+            # Extract title
+            title = soup.h1.get_text() if soup.h1 else ""
+
+            # Extract backlinks
+            backlinks = set()
+            for link in soup.find_all("a"):
+                href = link.get("href")
+                if href and href.startswith("#"):
+                    backlinks.add(href[1:])
+
+            # Extract emphasized text
+            emphasized = set()
+            for em in soup.find_all("em"):
+                emphasized.add(em.get_text())
+
+            # Add them to the index
+            processed_path = process_file_path(md_file)
+            writer.add_document(
+                path=md_file,
+                title=title,
+                content=content,
+                backlinks=" ".join(backlinks),
+                emphasized=" ".join(emphasized),
+                filepath=processed_path
+            )
+
+    writer.commit()
+
+    # Step 4: Ranking search results using BM25F
+    searcher = index.searcher(
+        weighting=scoring.BM25F(
+            B=0.75,
+            content_B=1.0,
+            backlinks_B=1.5,
+            emphasized_B=2.0,
+            filepath_B=1.0
+        )
+    )
+
     query = QueryParser("content", index.schema).parse(query_str)
     results = searcher.search(query, limit=max_results)
 
@@ -105,8 +108,3 @@ def custom_score(searcher, fieldnum, textreader, docnum, weight):
     # Calculate the custom score
     score = weight * (1 / (1 + folder_number))
     return score
-
-
-search_query = "blockstars"
-response = search_vault(search_query)
-
